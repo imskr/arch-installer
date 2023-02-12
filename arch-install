@@ -1,0 +1,176 @@
+#!/bin/sh
+
+# Colors :
+Green='\033[0;32m'        # Green
+Cyan='\033[1;36m'        # Cyan
+No='\e[0m'
+
+clear
+echo -e "${Cyan}░█████╗░██████╗░░█████╗░██╗░░██╗"
+echo -e "${Cyan}██╔══██╗██╔══██╗██╔══██╗██║░░██║"
+echo -e "${Cyan}███████║██████╔╝██║░░╚═╝███████║"
+echo -e "${Cyan}██╔══██║██╔══██╗██║░░██╗██╔══██║"
+echo -e "${Cyan}██║░░██║██║░░██║╚█████╔╝██║░░██║"
+echo -e "${Cyan}╚═╝░░╚═╝╚═╝░░╚═╝░╚════╝░╚═╝░░╚═╝"
+echo -e "${Cyan}"
+echo -e "${Cyan}██╗███╗░░██╗░██████╗████████╗░█████╗░██╗░░░░░██╗░░░░░███████╗██████╗░"
+echo -e "${Cyan}██║████╗░██║██╔════╝╚══██╔══╝██╔══██╗██║░░░░░██║░░░░░██╔════╝██╔══██╗"
+echo -e "${Cyan}██║██╔██╗██║╚█████╗░░░░██║░░░███████║██║░░░░░██║░░░░░█████╗░░██████╔╝"
+echo -e "${Cyan}██║██║╚████║░╚═══██╗░░░██║░░░██╔══██║██║░░░░░██║░░░░░██╔══╝░░██╔══██╗"
+echo -e "${Cyan}██║██║░╚███║██████╔╝░░░██║░░░██║░░██║███████╗███████╗███████╗██║░░██║"
+echo -e "${Cyan}╚═╝╚═╝░░╚══╝╚═════╝░░░░╚═╝░░░╚═╝░░╚═╝╚══════╝╚══════╝╚══════╝╚═╝░░╚═╝"
+
+#part1
+# Seting system :
+echo -e "${Cyan}Macking the system ready for installation${No}"
+pacman --noconfirm -Sy archlinux-keyring
+loadkeys fr
+timedatectl set-ntp true
+clear
+
+# Partiton :
+echo -e "${Cyan}Partitioning The Drive${No}"
+lsblk
+printf "${Cyan}[+]→ Enter The Drive : ${No}"
+read drive
+cfdisk $drive
+clear
+echo -e "${Cyan}Formating Partitions${No}"
+lsblk
+printf "${Cyan}[+]→ Enter The EFI Partition : ${No}"
+read efipart
+mkfs.fat -F32 $efipart
+read -p "[+]→ Did you also create Swap partition? [y/n] : " answer
+if [[ $answer = y ]] ; then
+	printf "${Cyan}[+]→ Enter The Swap Partition : ${No}"
+	read swappart
+	mkswap $swappart
+fi
+printf "${Cyan}[+]→ Enter The Linux Partition : ${No}"
+read linuxpart
+mkfs.ext4 $linuxpart
+
+# Monting :
+mount $linuxpart /mnt
+mkdir -p /mnt/boot/efi 
+mount $efipart /mnt/boot/efi
+swapon $swappart
+clear
+lsblk
+echo -e "${Cyan}Installing Base Packages${No}"
+pacstrap /mnt base base-devel linux linux-headers linux-firmware linux-firmware-qlogic broadcom-wl bluez bluez-utils vim nano intel-ucode
+echo -e "${Green}Installation Done ${No}"
+genfstab -U /mnt >> /mnt/etc/fstab
+
+# Setting Part2 :
+sed '1,/^#part2$/d' `basename $0` > /mnt/arch_install2.sh
+chmod +x /mnt/arch_install2.sh
+arch-chroot /mnt ./arch_install2.sh
+exit 
+
+#part2 
+# Colors :
+Green='\033[0;32m'        # Green
+Cyan='\033[1;36m'        # Cyan
+No='\e[0m'
+
+# Installing System Packages :
+echo -e "${Cyan}Installing System Packages${No}"
+
+# pacman.conf Edit :
+sed -i "s/#Color/Color/" /etc/pacman.conf
+sed -i "s/#UseSyslog/UseSyslog/" /etc/pacman.conf
+sed -i "s/#VerbosePkgLists/VerbosePkgLists/" /etc/pacman.conf
+sed -i "s/#ParallelDownloads = 5/ParallelDownloads = 10/" /etc/pacman.conf
+sed -i "/\#ParallelDownloads = 10/a ILoveCandy" /etc/pacman.conf
+sed -i "/\[multilib\]/,/Include/"'s/^#//' /etc/pacman.conf
+
+pacman --noconfirm -Sy networkmanager grub os-prober efibootmgr network-manager-applet dhcpcd wireless_tools wpa_supplicant intel-gpu-tools git ntfs-3g dialog sed opendoas
+
+# Gaming :
+echo -e "${Cyan}Installing System Graphics Driver${No}"
+pacman --noconfirm -Sy mesa lib32-mesa vulkan-intel lib32-vulkan-intel vulkan-icd-loader lib32-vulkan-icd-loader lib32-ocl-icd intel-compute-runtime
+
+echo -e "${Green}Installation Done ${No}"
+
+# Enabling Services :
+echo -e "${Cyan}Enabling Services${No}"
+systemctl enable NetworkManager
+systemctl enable bluetooth
+clear
+
+# Grub Install :
+echo -e "${Cyan}Installing Grub Bootloader${No}"
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id ArchLinux
+grub-mkconfig -o /boot/grub/grub.cfg
+clear
+
+# Add User :
+echo -e "${Cyan}Creating User ${No}"
+printf "${Green}[+]→ Enter Username : "
+read username
+useradd -m $username
+passwd $username
+usermod -aG wheel,audio,video,optical,storage,disk,network $username
+# Sudo :
+echo -e "${Cyan}Setting Up Sudo${No}"
+echo "%wheel ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+# Doas
+echo -e "${Cyan}Setting Up Doas${No}"
+echo "permit nopass keepenv :wheel" >> /etc/doas.conf
+chown -c root:root /etc/doas.conf
+chmod 0700 /etc/doas.conf
+
+# Config :
+echo -e "${Cyan}Configure Time and locale ${No}"
+echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+echo "KEYMAP=fr" > /etc/vconsole.conf
+locale-gen
+printf "${Green}Enter Hostname : ${No}"
+read hostname
+echo $hostname > /etc/hostname
+echo "127.0.0.1       localhost" >> /etc/hosts
+echo "::1             localhost" >> /etc/hosts
+
+# Time :
+ln -sf /usr/share/zoneinfo/Africa/Algiers /etc/localtime
+hwclock --systohc
+echo -e "${Green}System Installation Done ${No}"
+
+echo "Pre-Installation Finish Reboot now"
+ai3_path=/home/$username/arch_install3.sh
+sed '1,/^#part3$/d' arch_install2.sh > $ai3_path
+chown $username:$username $ai3_path
+chmod +x $ai3_path
+su -c $ai3_path -s /bin/sh $username
+rm -rf /home/$username/arch_install3.sh
+rm -rf /home/$username/yay-bin
+exit
+
+#part3
+# Colors :
+Green='\033[0;32m'        # Green
+Cyan='\033[1;36m'        # Cyan
+No='\e[0m'
+## Base :
+echo -e "${Cyan}Installing Main Packages${No}"
+sudo pacman --noconfirm -Sy xorg-server xorg-xinit xorg-xkill xorg-xsetroot xorg-xprop polkit polkit-gnome ffmpeg pulseaudio pulseaudio-alsa alsa-utils pulseaudio-bluetooth pavucontrol jack noto-fonts sddm gvfs xdg-utils xdg-user-dirs blueman net-tools pciutils usbutils
+
+## login && keybord :
+echo -e "${Cyan}Enabling Services${No}"
+sudo systemctl enable sddm
+echo -e "${Green}Installation Done ${No}"
+
+## yay Install :
+echo -e "${Cyan}Installing Yay${No}"
+cd $HOME
+git clone https://aur.archlinux.org/yay-bin.git
+cd yay-bin
+makepkg -si
+
+# Cleaning :
+sudo rm -rf /arch_install2.sh
+echo -e "${Green}Installing Done${No}"
+
