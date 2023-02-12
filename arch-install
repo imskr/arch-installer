@@ -24,7 +24,7 @@ echo -e "${Cyan}╚═╝╚═╝░░╚══╝╚═════╝░░�
 # Seting system :
 echo -e "${Cyan}Macking the system ready for installation${No}"
 pacman --noconfirm -Sy archlinux-keyring
-loadkeys fr
+loadkeys us
 timedatectl set-ntp true
 clear
 
@@ -126,7 +126,7 @@ chmod 0700 /etc/doas.conf
 echo -e "${Cyan}Configure Time and locale ${No}"
 echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 echo "LANG=en_US.UTF-8" > /etc/locale.conf
-echo "KEYMAP=fr" > /etc/vconsole.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
 locale-gen
 printf "${Green}Enter Hostname : ${No}"
 read hostname
@@ -135,7 +135,7 @@ echo "127.0.0.1       localhost" >> /etc/hosts
 echo "::1             localhost" >> /etc/hosts
 
 # Time :
-ln -sf /usr/share/zoneinfo/Africa/Algiers /etc/localtime
+ln -sf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime
 hwclock --systohc
 echo -e "${Green}System Installation Done ${No}"
 
